@@ -41,11 +41,11 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // --- Parse JSON for local routes ---
-app.use(express.json());
+// (Removed global express.json() so it doesn't consume the stream before proxying)
 
-// --- Authentication & Authorization ---
+// Authentication & Authorization
 // Generate JWT (Called internally by Gateway after successful login on microservice)
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', express.json(), async (req, res) => {
   // We forward the login request manually to the microservice to verify credentials
   try {
     const response = await fetch(`${SERVICE_URL}/api/login`, {
@@ -110,26 +110,24 @@ const requireRole = (role) => {
 const proxyOptions = {
   target: SERVICE_URL,
   changeOrigin: true,
-  onProxyReq: (proxyReq, req, res) => {
-    // Inject Gateway Secret so microservice knows it's from the gateway
-    proxyReq.setHeader('X-Gateway-Secret', process.env.GATEWAY_SECRET);
-    // Inject User ID if authenticated, so microservice can track who bought what
-    if (req.user) {
-      proxyReq.setHeader('X-User-Id', req.user.id);
-      proxyReq.setHeader('X-User-Role', req.user.role);
+  on: {
+    proxyReq: (proxyReq, req, res) => {
+      // Inject Gateway Secret so microservice knows it's from the gateway
+      proxyReq.setHeader('X-Gateway-Secret', process.env.GATEWAY_SECRET);
+      // Inject User ID if authenticated, so microservice can track who bought what
+      if (req.user) {
+        proxyReq.setHeader('X-User-Id', req.user.id);
+        proxyReq.setHeader('X-User-Role', req.user.role);
+      }
     }
   }
 };
 
 // Routes going to microservice
+// Routes going to microservice
 // 1. Public: Register and View Products
-app.use('/api/register', createProxyMiddleware(proxyOptions));
-app.use('/api/products', (req, res, next) => {
-  if (req.method === 'GET') {
-    return createProxyMiddleware(proxyOptions)(req, res, next);
-  }
-  next();
-});
+app.post('/api/register', createProxyMiddleware(proxyOptions));
+app.get('/api/products', createProxyMiddleware(proxyOptions));
 
 // 2. Admin Only: Add Products
 app.post('/api/products', authenticateToken, requireRole('Admin'), createProxyMiddleware(proxyOptions));
