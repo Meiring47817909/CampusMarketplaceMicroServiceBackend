@@ -129,8 +129,10 @@ const proxyOptions = {
 app.post('/api/register', createProxyMiddleware(proxyOptions));
 app.get('/api/products', createProxyMiddleware(proxyOptions));
 
-// 2. Admin Only: Add Products
+// 2. Admin Only: Add, Edit, Delete Products
 app.post('/api/products', authenticateToken, requireRole('Admin'), createProxyMiddleware(proxyOptions));
+app.put('/api/products/:id', authenticateToken, requireRole('Admin'), createProxyMiddleware(proxyOptions));
+app.delete('/api/products/:id', authenticateToken, requireRole('Admin'), createProxyMiddleware(proxyOptions));
 
 // 3. Student Only: Buy Products
 app.post('/api/buy', authenticateToken, requireRole('Student'), createProxyMiddleware(proxyOptions));
